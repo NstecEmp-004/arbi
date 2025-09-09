@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>価格マトリクス</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --gap: 14px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "ヒラギノ角ゴ ProN", Meiryo, sans-serif; margin: 24px auto; max-width: 1200px; padding: 0 16px; }
+    header { display: flex; gap: var(--gap); align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    h1 { margin: 0 0 6px 0; font-size: 20px; }
+    .muted { color:#666; font-size: 12px; }
+    a.button { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #222; border-radius:10px; background:#fff; color:#222; text-decoration:none; }
+    a.button:hover { background:#f7f7f7; }
+
+    .card { border:1px solid #eee; border-radius:14px; padding:12px 14px; background:#fff; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #fafafa; font-weight: 600; }
+    tr:hover td { background: #fcfcfc; }
+    .updatedAt { margin-top:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>価格マトリクス</h1>
+      <div class="muted">/api/state/table を 2 秒ごとに取得して表示します</div>
+    </div>
+    <nav style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="button" href="/ui/main">← メインへ戻る</a>
+    </nav>
+  </header>
+
+  <section class="card">
+    <div id="matrixWrap">
+      <table id="priceMatrix" aria-label="市場ごとの銘柄価格">
+        <!-- JSでヘッダと行を生成 -->
+      </table>
+      <div id="updatedAt" class="muted updatedAt">更新: -</div>
+    </div>
+  </section>
+
+  <script>
+    const API = '/api/state/table';
+    const JPY = new Intl.NumberFormat('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    let lastHeader = [];  // 前回の列構成（市場列を除く）
+
+    async function fetchJson(url){
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    function toLocalTime(iso) {
+      try {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        return d.toLocaleString();
+      } catch { return '-'; }
+    }
+
+    function renderTable(rows) {
+      const table = document.getElementById('priceMatrix');
+      if (!Array.isArray(rows)) rows = [];
+
+      // 銘柄列（market を除いたユニークキー）を抽出
+      const assetSet = new Set();
+      for (const row of rows) {
+        for (const k of Object.keys(row)) {
+          if (k !== 'market') assetSet.add(k);
+        }
+      }
+      // 既定順序を少し配慮（A,B,C があれば先頭に、残りはアルファベット順）
+      const assets = Array.from(assetSet);
+      const preferred = ['A','B','C'];
+      assets.sort((a,b) => {
+        const ia = preferred.indexOf(a), ib = preferred.indexOf(b);
+        if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+        return a.localeCompare(b, 'ja');
+      });
+
+      // テーブルを再構築（ヘッダ）
+      // 列構成が変わらない限り tbody 部分だけ差し替えでも良いが、簡潔に作り直す
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      const thMarket = document.createElement('th');
+      thMarket.textContent = '市場';
+      trh.appendChild(thMarket);
+      for (const a of assets) {
+        const th = document.createElement('th');
+        th.textContent = a + ' 株価';
+        trh.appendChild(th);
+      }
+      thead.appendChild(trh);
+
+      const tbody = document.createElement('tbody');
+      for (const row of rows) {
+        const tr = document.createElement('tr');
+        const tdMarket = document.createElement('td');
+        tdMarket.textContent = row.market ?? '-';
+        tr.appendChild(tdMarket);
+
+        for (const a of assets) {
+          const td = document.createElement('td');
+          const v = row[a];
+          td.textContent = (v == null) ? '-' : JPY.format(Number(v));
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+
+      // 差し替え
+      table.innerHTML = '';
+      table.appendChild(thead);
+      table.appendChild(tbody);
+
+      lastHeader = assets;
+    }
+
+    async function refreshMatrix(){
+      try{
+        const data = await fetchJson(API);
+        const rows = Array.isArray(data.table) ? data.table : [];
+        renderTable(rows);
+        document.getElementById('updatedAt').textContent = '更新: ' + toLocalTime(data.lastTick || null);
+      }catch(e){
+        // 失敗しても画面は保持
+        document.getElementById('updatedAt').textContent = '更新: 取得失敗';
+      }
+    }
+
+    // 初回 & 2秒ごと
+    refreshMatrix();
+    setInterval(refreshMatrix, 2000);
+  </script>
+</body>
+</html>

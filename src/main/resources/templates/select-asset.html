@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>銘柄を選択してください</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin:0; font-family:system-ui, sans-serif; height:100dvh; display:grid; place-items:center; }
+    .panel { width:min(880px, 92vw); height:min(520px, 82vh); background:#eee; border:3px solid #0a2a38; border-radius:6px; padding:24px; box-sizing:border-box; }
+    h1 { margin:0 0 16px; }
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+    a.tile { display:block; text-align:center; padding:16px; border:2px solid #000; border-radius:10px; text-decoration:none; color:inherit; background:#fff; }
+    .back { margin-top:16px; display:inline-block; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>銘柄を選択してください</h1>
+    <div class="grid">
+      <a class="tile" href="/ui/asset-info?asset=A">A株</a>
+      <a class="tile" href="/ui/asset-info?asset=B">B株</a>
+      <a class="tile" href="/ui/asset-info?asset=C">C株</a>
+    </div>
+    <a class="back" href="/ui/main">← 戻る</a>
+  </div>
+</body>
+</html>

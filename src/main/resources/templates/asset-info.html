@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>銘柄情報</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { --muted:#f5f6f8; --border:#e5e7eb; }
+    body { font-family: system-ui, sans-serif; max-width: 980px; margin: 24px auto; padding: 0 12px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+    .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+    .muted { color:#666; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid var(--border); text-align:left; font-size: 14px; }
+    td.price, th.price { text-align:right; }
+    .actions { display:flex; gap:8px; margin: 8px 0 16px; }
+    button { border:1px solid var(--border); background:#0ea5e9; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    button.secondary { background: #fff; color:#111; }
+    #chart { width: 100%; height: 260px; border:1px solid var(--border); border-radius: 10px; }
+    .comment-form { display:flex; gap:8px; }
+    .comment-form textarea { flex:1; height:64px; font-family: inherit; font-size:14px; }
+    .comment { padding:8px 0; border-bottom:1px dashed var(--border); }
+    .pill { background: var(--muted); padding:2px 8px; border-radius:999px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1 id="title">銘柄情報</h1>
+  <div class="muted" id="subtitle"></div>
+
+  <div class="actions">
+    <button id="startBtn">取引開始（このページの統計をリセット）</button>
+    <button class="secondary" onclick="history.back()">戻る</button>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3 style="margin:0 0 8px">現在の株価</h3>
+      <div style="font-size:28px; margin: 2px 0 8px"><span id="priceAvg">-</span> <span class="pill">平均</span></div>
+      <div class="muted" id="hiLo">高値 - / 安値 -（取引開始から）</div>
+      <svg id="chart"></svg>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px">企業情報</h3>
+      <pre id="company" style="white-space:pre-wrap; font-family:inherit; line-height:1.6; margin:0"></pre>
+      <h3 style="margin:12px 0 8px">市場別 直近価格</h3>
+      <table>
+        <thead><tr><th>市場</th><th class="price">価格</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">コメント</h3>
+    <div id="comments"></div>
+    <form class="comment-form" onsubmit="return postComment()">
+      <textarea id="commentText" placeholder="この銘柄にコメントを書く…"></textarea>
+      <button type="submit">投稿</button>
+    </form>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const asset = params.get('asset') || 'A';
+
+  document.getElementById('title').textContent = `銘柄情報（${asset}）`;
+  document.getElementById('subtitle').textContent = `ui/asset-info?asset=${asset}`;
+
+  async function j(url, opt){
+    const res = await fetch(url, opt);
+    if(!res.ok) throw new Error(await res.text());
+    return await res.json();
+  }
+
+  async function reloadSummary(){
+    const s = await j(`/api/asset/${asset}/summary`);
+    document.getElementById('company').textContent = s.company || '';
+    const avg = s.current?.average ?? null;
+    document.getElementById('priceAvg').textContent = avg ? Number(avg).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}) : '-';
+
+    const hi = s.window?.high ?? null;
+    const lo = s.window?.low ?? null;
+    const hiLo = `高値 ${hi??'-'} / 安値 ${lo??'-'}（取引開始から）`;
+    document.getElementById('hiLo').textContent = hiLo;
+
+    const byMarket = s.current?.byMarket || {};
+    const tbody = document.getElementById('tbody'); tbody.innerHTML='';
+    Object.entries(byMarket).forEach(([m, p])=>{
+      const tr = document.createElement('tr');
+      const price = (p==null) ? '-' : Number(p).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+      tr.innerHTML = `<td>${m}</td><td class="price">${price}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderLineChart(svgId, points){
+    const svg = document.getElementById(svgId);
+    const W = svg.clientWidth || 600, H = svg.clientHeight || 260;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = '';
+    if(!points.length){ return; }
+    const xs = points.map(p=>new Date(p.ts).getTime());
+    const ys = points.map(p=>Number(p.price));
+    const xmin = Math.min(...xs), xmax = Math.max(...xs);
+    const ymin = Math.min(...ys), ymax = Math.max(...ys);
+    const pad = 16;
+    const xscale = t => pad + (W-2*pad) * ( (t - xmin) / Math.max(1, (xmax - xmin)) );
+    const yscale = v => H-pad - (H-2*pad) * ( (v - ymin) / Math.max(1e-9, (ymax - ymin)) );
+    // grid (y)
+    for(let i=0;i<4;i++){
+      const y = pad + i*(H-2*pad)/3;
+      const gy = H - y;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', pad); line.setAttribute('x2', W-pad);
+      line.setAttribute('y1', gy); line.setAttribute('y2', gy);
+      line.setAttribute('stroke', '#eee'); line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+    }
+    // path
+    let d='';
+    points.forEach((p,i)=>{
+      const x=xscale(new Date(p.ts).getTime()), y=yscale(Number(p.price));
+      d += (i? ' L':'M') + x + ' ' + y;
+    });
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#2563eb');
+    path.setAttribute('stroke-width', '2');
+    svg.appendChild(path);
+  }
+
+  async function reloadSeries(){
+    const s = await j(`/api/asset/${asset}/series?minutes=120`);
+    renderLineChart('chart', s.points || []);
+  }
+
+  async function loadComments(){
+    const s = await j(`/api/asset/${asset}/comments`);
+    const box = document.getElementById('comments'); box.innerHTML='';
+    (s.items||[]).forEach(c=>{
+      const div = document.createElement('div');
+      const d = new Date(c.createdAt);
+      div.className = 'comment';
+      div.innerHTML = `<div class="muted">${d.toLocaleString()}</div><div>${escapeHtml(c.content)}</div>`;
+      box.appendChild(div);
+    });
+  }
+
+  function escapeHtml(str){
+    return str.replace(/[&<>"']/g, s=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[s]));
+  }
+
+  async function postComment(){
+    const ta = document.getElementById('commentText');
+    const text = ta.value.trim();
+    if(!text) return false;
+    await j(`/api/asset/${asset}/comments`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: `text=${encodeURIComponent(text)}` });
+    ta.value='';
+    loadComments();
+    return false;
+  }
+
+  document.getElementById('startBtn').addEventListener('click', async ()=>{
+    await j(`/api/asset/${asset}/window/reset`, { method:'POST' });
+    await reloadSummary();
+  });
+
+  async function loop(){
+    try {
+      await reloadSummary();
+      await reloadSeries();
+      await loadComments();
+    } catch(e){ console.error(e); }
+  }
+
+  loop();
+  setInterval(reloadSummary, 2000);
+  setInterval(reloadSeries, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>銘柄一覧</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; margin: 24px; }
+    a { color: #2563eb; text-decoration: none; }
+    ul { line-height: 1.9; }
+    select { padding: 6px 8px; }
+  </style>
+</head>
+<body>
+  <p><a href="javascript:history.back()">← 戻る</a> / <a href="/">ホームへ</a></p>
+  <h1>銘柄一覧</h1>
+
+  <label>銘柄を選択: </label>
+  <select onchange="if(this.value) location.href='/assets/'+this.value">
+    <option value="">-- 選択 --</option>
+    <th:block th:each="a : ${assets}">
+      <option th:value="${a.symbol}" th:text="${a.symbol} + ' - ' + ${a.name}"></option>
+    </th:block>
+  </select>
+
+  <h2>一覧</h2>
+  <ul>
+    <li th:each="a : ${assets}"><a th:href="@{'/assets/' + ${a.symbol}}" th:text="${a.symbol} + ' - ' + ${a.name}"></a></li>
+  </ul>
+</body>
+</html>

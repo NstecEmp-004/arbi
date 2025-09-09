@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>取引履歴</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --gap: 14px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "ヒラギノ角ゴ ProN", Meiryo, sans-serif; margin: 24px auto; max-width: 1200px; padding: 0 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:var(--gap); flex-wrap:wrap; }
+    h1 { margin:0 0 6px 0; font-size:20px; }
+    .muted { color:#666; font-size:12px; }
+    a.button, button { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #222; border-radius:10px; background:#fff; color:#222; text-decoration:none; cursor:pointer; }
+    a.button:hover, button:hover { background:#f7f7f7; }
+
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .summary { display:flex; gap:16px; flex-wrap:wrap; align-items:baseline; }
+    .summary .k { color:#555; }
+    .summary .v { font-variant-numeric: tabular-nums; }
+
+    .card { border:1px solid #eee; border-radius:14px; padding:12px 14px; background:#fff; margin-top:16px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:8px 10px; border-bottom:1px solid #eee; text-align:right; font-variant-numeric: tabular-nums; }
+    th:first-child, td:first-child { text-align:left; }
+    th { background:#fafafa; font-weight:600; position:sticky; top:0; z-index:1; }
+    tr:hover td { background:#fcfcfc; }
+    .pos { color:#077407; }  /* 利益プラス */
+    .neg { color:#b32020; }  /* 利益マイナス */
+    .nowrap { white-space:nowrap; }
+    .pagination { display:flex; gap:8px; margin-top:10px; align-items:center; }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>取引履歴</h1>
+    <div class="muted">2秒ごとに最新の約定を取得して表示します</div>
+  </div>
+  <div class="toolbar">
+    <a class="button" href="/ui/main">← メインへ</a>
+    <button id="btnPause">⏸ 一時停止</button>
+    <button id="btnRefresh">↻ 今すぐ更新</button>
+  </div>
+</header>
+
+<section class="card">
+  <div class="summary">
+    <div><span class="k">件数:</span> <span id="sumCount" class="v">-</span></div>
+    <div><span class="k">合計利益(本日):</span> <span id="sumNet" class="v">-</span></div>
+    <div class="muted" id="updatedAt">更新: -</div>
+  </div>
+
+  <div style="overflow:auto; max-height:65vh; margin-top:10px;">
+    <table aria-label="取引履歴">
+      <thead>
+      <tr>
+        <th class="nowrap">時刻</th>
+        <th>銘柄</th>
+        <th>買い市場</th>
+        <th>売り市場</th>
+        <th class="nowrap">数量</th>
+        <th class="nowrap">買値</th>
+        <th class="nowrap">売値</th>
+        <th class="nowrap">利益(手数料後)</th>
+      </tr>
+      </thead>
+      <tbody id="tradesBody">
+      <!-- JSで行を差し込む -->
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination">
+    <label>表示件数:
+      <select id="selLimit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="200">200</option>
+      </select>
+    </label>
+  </div>
+</section>
+
+<script>
+  (function(){
+    const JPY = new Intl.NumberFormat('ja-JP', { style:'currency', currency:'JPY' });
+    const INT = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 0 });
+    const TRY = [
+      '/api/trades/recent',              // 反射版
+      '/api/trades/recent?limit=100'     // 明示limit
+    ];
+
+    let paused = false, timer = null, currentLimit = 100;
+
+    function setText(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; }
+
+    async function fetchJson(url){
+      const r = await fetch(url, { cache:'no-store' });
+      if(!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    async function load(){
+      if (paused) return;
+      let data = null;
+
+      // limit パラメータを付与
+      const urls = [
+        `/api/trades/recent?limit=${currentLimit}`,
+        ...TRY
+      ];
+
+      for (const u of urls){
+        try { data = await fetchJson(u); break; } catch(_){ }
+      }
+      if (!data) return;
+
+      const list = Array.isArray(data.trades) ? data.trades : [];
+
+      // 件数・合計
+      setText('sumCount', INT.format(list.length));
+      const totalNet = list.reduce((acc, t) => acc + (Number(t.net) || 0), 0);
+      setText('sumNet', JPY.format(totalNet));
+      setText('updatedAt', '更新: ' + new Date().toLocaleString());
+
+      // テーブル描画
+      const tbody = document.getElementById('tradesBody');
+      tbody.innerHTML = '';
+      for (const t of list){
+        const tr = document.createElement('tr');
+        const net = Number(t.net ?? 0);
+        tr.innerHTML = `
+          <td class="nowrap">${t.time ?? '-'}</td>
+          <td>${t.asset ?? '-'}</td>
+          <td>${t.buyMarket ?? '-'}</td>
+          <td>${t.sellMarket ?? '-'}</td>
+          <td style="text-align:right">${INT.format(Number(t.qty ?? 0))}</td>
+          <td style="text-align:right">${t.buyPrice!=null ? JPY.format(Number(t.buyPrice)) : '-'}</td>
+          <td style="text-align:right">${t.sellPrice!=null ? JPY.format(Number(t.sellPrice)) : '-'}</td>
+          <td style="text-align:right" class="${net>=0 ? 'pos':'neg'}">${JPY.format(net)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function start(){ if (timer) clearInterval(timer); timer = setInterval(load, 2000); }
+
+    document.getElementById('btnPause').addEventListener('click', () => {
+      paused = !paused;
+      document.getElementById('btnPause').textContent = paused ? '▶ 再開' : '⏸ 一時停止';
+    });
+    document.getElementById('btnRefresh').addEventListener('click', load);
+    document.getElementById('selLimit').addEventListener('change', (e) => {
+      currentLimit = Number(e.target.value) || 100;
+      load();
+    });
+
+    // 初期化
+    load();
+    start();
+  })();
+</script>
+</body>
+</html>

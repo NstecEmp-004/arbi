@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>市場一覧</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; margin: 24px; }
+    a { color: #2563eb; text-decoration: none; }
+    ul { line-height: 1.9; }
+    select { padding: 6px 8px; }
+  </style>
+</head>
+<body>
+  <p><a href="javascript:history.back()">← 戻る</a> / <a href="/">ホームへ</a></p>
+  <h1>市場一覧</h1>
+
+  <label>市場を選択: </label>
+  <select onchange="if(this.value) location.href='/markets/'+this.value">
+    <option value="">-- 選択 --</option>
+    <th:block th:each="m : ${markets}">
+      <option th:value="${m.id}" th:text="${m.name}"></option>
+    </th:block>
+  </select>
+
+  <h2>一覧</h2>
+  <ul>
+    <li th:each="m : ${markets}"><a th:href="@{'/markets/' + ${m.id}}" th:text="${m.name}"></a></li>
+  </ul>
+</body>
+</html>

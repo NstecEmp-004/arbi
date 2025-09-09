@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>市場情報</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 780px; margin: 24px auto; }
+    h1 { margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #eee; text-align:left; }
+    td.price { text-align:right; }
+  </style>
+</head>
+<body>
+  <h1 id="title">市場情報</h1>
+  <table>
+    <thead><tr><th>銘柄</th><th>現在の株価</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    function normalizeMarketName(name){
+      if (!name) return name;
+      const m = String(name).match(/^(Market)\s*(\d+)$/i);
+      if (m) return m[1] + ' ' + m[2];
+      return name;
+    }
+    const params = new URLSearchParams(location.search);
+    let market = normalizeMarketName(params.get("market"));
+
+    async function fetchJson(url){ const r = await fetch(url); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+    async function load(){
+      const s = await fetchJson('/api/state/table');
+      const table = s.table || [];
+      if(!market){ market = (table[0] && table[0].market) || 'Market 1'; }
+      document.getElementById('title').textContent = market + ' 情報';
+      const row = table.find(r=>r.market===market) || {};
+      const tbody = document.getElementById('tbody'); tbody.innerHTML='';
+      ['A','B','C'].forEach(sym=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${sym}</td><td class="price">${row[sym] ?? '-'}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    load(); setInterval(load, 2000);
+  </script>
+</body>
+</html>

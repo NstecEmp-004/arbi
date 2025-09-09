@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>現在の株価</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 24px auto; }
+    h1 { margin-bottom: 16px; }
+    .info { margin-bottom: 8px; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; }
+    a.button { display:inline-block; padding:10px 14px; border-radius:10px; border:1px solid #333; text-decoration:none; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <a class="button" href="/ui/select-market" onclick="history.back(); return false;">← 戻る</a>
+  <h1>現在の株価</h1>
+  <div class="info"><strong>銘柄:</strong> <span id="asset"></span> / <strong>市場:</strong> <span id="market"></span></div>
+  <div class="card">
+    <div style="font-size:32px; font-weight:700" id="price">-</div>
+    <div id="ts" style="color:#666; margin-top:6px;"></div>
+  </div>
+  <div class="row">
+    <a class="button" id="assetInfo" href="#">A株情報</a>
+    <a class="button" id="marketInfo" href="#">Market情報</a>
+    <a class="button" id="graph" href="#">グラフを見る</a>
+  </div>
+
+  <script>
+    function normalizeMarketName(name){
+      if (!name) return name;
+      const m = String(name).match(/^(Market)\s*(\d+)$/i);
+      if (m) return m[1] + ' ' + m[2];
+      return name;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const asset = params.get("asset") || 'A';
+    let   marketParam = params.get("market");
+
+    async function fetchJson(url){ const r = await fetch(url); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+
+    async function load(){
+      try{
+        const s = await fetchJson('/api/state/table');
+        const table = s.table || [];
+        const markets = table.map(r=>r.market);
+        const market = normalizeMarketName(marketParam) || markets[0] || 'Market 1';
+
+        document.getElementById('asset').textContent = asset;
+        document.getElementById('market').textContent = market;
+        document.getElementById('assetInfo').href = '/ui/asset-info?asset=' + encodeURIComponent(asset);
+        document.getElementById('assetInfo').textContent = asset + '株情報';
+        document.getElementById('marketInfo').href = '/ui/market-info?market=' + encodeURIComponent(market);
+        document.getElementById('marketInfo').textContent = market + ' 情報';
+        document.getElementById('graph').href = '/ui/graph?asset=' + encodeURIComponent(asset) + '&market=' + encodeURIComponent(market);
+
+        const row = table.find(r=>r.market===market);
+        document.getElementById('price').textContent = row ? (row[asset] ?? '-') : '価格情報なし';
+        document.getElementById('ts').textContent = s.lastTick ? String(s.lastTick) : '';
+      }catch(e){
+        document.getElementById('price').textContent = '取得エラー: ' + e.message;
+      }
+    }
+    load(); setInterval(load, 2500);
+  </script>
+</body>
+</html>

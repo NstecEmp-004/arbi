@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>今日の利益 - Profit Graph</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --gap: 14px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "ヒラギノ角ゴ ProN", Meiryo, sans-serif; margin: 24px auto; max-width: 1100px; padding: 0 16px; }
+    header { display: flex; gap: var(--gap); align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    h1 { margin: 0 0 6px 0; font-size: 20px; }
+    .muted { color: #666; font-size: 12px; }
+    a.button, button { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #222; border-radius:10px; background:#fff; color:#222; text-decoration:none; cursor:pointer; }
+    a.button:hover, button:hover { background:#f7f7f7; }
+    .kpi { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: var(--gap); margin: 16px 0; }
+    .card { border:1px solid #eee; border-radius:14px; padding:12px 14px; background:#fff; }
+    .card h3 { margin:0 0 4px 0; font-size:14px; color:#444; }
+    .value { font-variant-numeric: tabular-nums; font-size: 24px; }
+    #chartWrap { border:1px solid #eee; border-radius:16px; padding:12px; }
+    /* クリック可能KPI（約定件数） */
+    .linkcard { text-decoration: none; color: inherit; display:block; }
+    .linkcard:hover { background:#fafafa; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>今日の利益</h1>
+      <div class="muted">2秒ごとにメトリクスを取得して描画します</div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="button" href="/ui/main">← 戻る</a>
+      <button id="btnPause">⏸ 一時停止</button>
+      <button id="btnClear">🧹 クリア</button>
+    </div>
+  </header>
+
+  <!-- KPI（診断パネルは削除） -->
+  <section class="kpi">
+    <div class="card">
+      <h3>今日の利益</h3>
+      <div id="todayProfitValue" class="value">-</div>
+    </div>
+    <!-- 約定件数はクリックで /ui/trades へ -->
+    <a class="card linkcard" href="/ui/trades" title="取引履歴を表示">
+      <h3>本日の約定件数（クリックで履歴へ）</h3>
+      <div id="tradesTodayValue" class="value">-</div>
+    </a>
+  </section>
+
+  <!-- グラフだけ -->
+  <section id="chartWrap">
+    <canvas id="profitChart" height="200"></canvas>
+  </section>
+
+  <script>
+    // ====== 設定 ======
+    const TRY_ENDPOINTS = ['/api/metrics?period=today', '/api/metrics', '/api/dev/metrics'];
+    const POLL_MS = 2000, MAX_POINTS = 600;
+
+    // ====== 表示ユーティリティ ======
+    const fmtYen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
+    const fmtNum = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 0 });
+    const pick = (obj, keys, defVal = 0) => { for (const k of keys) if (obj && obj[k] != null) return obj[k]; return defVal; };
+    const hhmmss = (d=new Date()) => String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+
+    // ====== メトリクス正規化（todayProfit / tradesToday を必ず得る） ======
+    function normalizeMetrics(raw){
+      let todayProfit = Number(pick(raw, ['todayProfit','todayprofit','profitToday','pnlToday','pnl'], 0));
+      let tradesToday  = Number(pick(raw, ['tradesToday','trades','todayTrades','count'], 0));
+      // Analytics形式（cumulativePnL末尾）にも対応
+      if ((isNaN(todayProfit) || todayProfit === 0) && Array.isArray(raw?.cumulativePnL) && raw.cumulativePnL.length){
+        const last = raw.cumulativePnL[raw.cumulativePnL.length - 1];
+        if (last && (last.value!=null)) todayProfit = Number(last.value);
+      }
+      return {
+        todayProfit: isNaN(todayProfit) ? 0 : todayProfit,
+        tradesToday: isNaN(tradesToday) ? 0 : tradesToday
+      };
+    }
+
+    // ====== エンドポイント自動検出（表示はしない） ======
+    let METRICS_URL = null;
+    async function detectEndpoint(){
+      for (const url of TRY_ENDPOINTS){
+        try { const r = await fetch(url, {cache:'no-store'}); if (r.ok){ METRICS_URL = url; break; } } catch {}
+      }
+      if (!METRICS_URL) METRICS_URL = TRY_ENDPOINTS[0];
+    }
+
+    // ====== Chart.js ======
+    const ctx = document.getElementById('profitChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: '今日の利益 (累計)', data: [], tension: 0.25, fill: false, pointRadius: 0, borderWidth: 2 }] },
+      options: {
+        responsive: true, animation: false,
+        scales: {
+          x: { title: { display: true, text: '時刻' } },
+          y: { title: { display: true, text: '金額 (円)' }, beginAtZero: true }
+        },
+        plugins: { legend: { display: true } }
+      }
+    });
+    function pushPoint(label, y){
+      const { labels, datasets } = chart.data;
+      labels.push(label); datasets[0].data.push(y);
+      if (labels.length > MAX_POINTS){ labels.shift(); datasets[0].data.shift(); }
+      chart.update();
+    }
+    function clearChart(){ chart.data.labels.length = 0; chart.data.datasets[0].data.length = 0; chart.update(); }
+
+    // ====== ポーリング ======
+    let paused = false, timer = null;
+    async function pollOnce(){
+      if (!METRICS_URL) return;
+      try{
+        const res = await fetch(METRICS_URL, {cache:'no-store'});
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const raw = await res.json();
+        const m = normalizeMetrics(raw);
+
+        document.getElementById('todayProfitValue').textContent  = fmtYen.format(m.todayProfit);
+        document.getElementById('tradesTodayValue').textContent = fmtNum.format(m.tradesToday);
+        pushPoint(hhmmss(), m.todayProfit);
+      }catch(e){
+        // 表示はそのまま（エラーは出さない）
+      }
+    }
+    function startPolling(){ if (timer) clearInterval(timer); timer = setInterval(() => { if (!paused) pollOnce(); }, POLL_MS); }
+
+    // ====== イベント ======
+    document.getElementById('btnPause').addEventListener('click', () => {
+      paused = !paused;
+      document.getElementById('btnPause').textContent = paused ? '▶ 再開' : '⏸ 一時停止';
+    });
+    document.getElementById('btnClear').addEventListener('click', () => clearChart());
+
+    // ====== 初期化 ======
+    (async function init(){
+      await detectEndpoint();
+      await pollOnce();
+      startPolling();
+    })();
+  </script>
+</body>
+</html>

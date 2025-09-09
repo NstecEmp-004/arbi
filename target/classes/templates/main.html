@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>取引中</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin:0; font-family:system-ui, sans-serif; height:100dvh; display:grid; place-items:center; }
+    .panel { width:min(980px, 94vw); height:min(620px, 88vh); background:#fff; border:3px solid #0a2a38; border-radius:6px; padding:24px; box-sizing:border-box; }
+    .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:18px; }
+    .tile, .end, .linktile { border:3px solid #000; border-radius:10px; padding:18px; min-height:90px; }
+    .tile h3, .linktile h3 { margin:0 0 8px; font-size:18px; }
+    .end { text-align:center; cursor:pointer; }
+    .linktile { text-decoration:none; color:inherit; display:block; }
+    .linktile:focus, .linktile:hover { outline:3px solid #4caf50; }
+    #prices { white-space: pre-wrap; max-height: 180px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="grid">
+      <a class="linktile" href="/ui/profit-graph"><h3>今日の利益</h3><div id="profit">-</div></a>
+      <a class="linktile" href="/ui/select-asset"><h3>銘柄数</h3><div id="assetCount">3</div></a>
+    
+      <a class="linktile" href="/ui/matrix"><h3>現在の株価</h3><div id="prices">-</div></a>
+      <div class="end" onclick="endTrading()">取引終了</div>
+    </div>
+  </div>
+  <script>
+    
+async function fetchJson(u){ const r=await fetch(u); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+function getAssetSymbols(s){
+  const table = s?.table || [];
+  if (Array.isArray(table) && table.length){
+    const cols = Object.keys(table[0]).filter(k=>k!=='market');
+    if (cols.length) return cols;
+  }
+  if (Array.isArray(s?.assets) && s.assets.length){
+    const syms = s.assets.map(a=>a.symbol || a.name || a.id).filter(Boolean);
+    if (syms.length) return syms;
+  }
+  return ['A','B','C'];
+}
+function getMarketNames(s){
+  const table = s?.table || [];
+  if (Array.isArray(table) && table.length){
+    const names = table.map(r=>r.market).filter(Boolean);
+    if (names.length) return names;
+  }
+  if (Array.isArray(s?.markets) && s.markets.length){
+    const names = s.markets.map(m=>m.name || m.id).filter(Boolean);
+    if (names.length) return names;
+  }
+  return ['Market1','Market2','Market3','Market4','Market5'];
+}
+function columnKeyCaseInsensitive(row, key){
+  if (!row) return null;
+  if (key in row) return key;
+  const lower = key.toLowerCase();
+  for (const k of Object.keys(row)){
+    if (k.toLowerCase() === lower) return k;
+  }
+  return null;
+}
+function findPriceUniversal(s, assetSymbol, marketName){
+  const table = s?.table || [];
+  if (Array.isArray(table) && table.length){
+    const row = table.find(r => (r.market === marketName));
+    if (row){
+      const colKey = columnKeyCaseInsensitive(row, assetSymbol);
+      if (colKey) return row[colKey] ?? null;
+    }
+  }
+  const assets = s?.assets || [];
+  const markets = s?.markets || [];
+  const a = assets.find(x => (x.symbol===assetSymbol) || (x.name===assetSymbol) || (x.id===assetSymbol));
+  const m = markets.find(x => (x.name===marketName) || (x.id===marketName));
+  const aId = a?.id, mId = m?.id;
+  const pObj = (s?.snap?.[mId]?.[aId]);
+  if (pObj && typeof pObj.price !== 'undefined') return pObj.price;
+  return null;
+}
+
+    async function refresh(){
+      const s = await fetchJson('/api/state');
+      const assets = getAssetSymbols(s).slice(0,3);
+      const markets = getMarketNames(s).slice(0,5);
+      const lines = [];
+      for (const m of markets){
+        for (const a of assets){
+          const v = findPriceUniversal(s, a, m);
+          lines.push(`${a}@${m}: ${(v ?? '-')}`);
+          if (lines.length >= 8) break;
+        }
+        if (lines.length >= 8) break;
+      }
+      document.getElementById('prices').textContent = lines.join('\n') || '-';
+      try{ const m = await fetchJson('/api/metrics'); document.getElementById('profit').textContent = (typeof m.todayProfit==='number')? m.todayProfit : '-'; }catch(e){};
+    }
+    async function endTrading(){ try{ await fetch('/api/control/trading?enabled=false',{method:'POST'}); }catch(e){} location.href='/ui'; }
+    refresh(); setInterval(refresh, 2000);
+  </script>
+</body>
+</html>

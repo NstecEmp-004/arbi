@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; margin: 24px; }
+    a { color: #2563eb; text-decoration: none; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.04); margin-bottom: 20px; }
+    .muted { color: #666; font-size: 12px; }
+    canvas { width: 100%; height: 360px; }
+    header { display:flex; align-items:center; gap:12px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0">Analytics</h1>
+    <a href="/" style="margin-left:auto">← Back to Home</a>
+  </header>
+  <div class="muted" id="range"></div>
+
+  <div class="card"><h2 style="margin-top:0">累積PnL（全体）</h2><canvas id="cum"></canvas></div>
+  <div class="card"><h2 style="margin-top:0">銘柄別 累積PnL</h2><canvas id="perAsset"></canvas></div>
+
+  <script src="/js/analytics.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: arbitrage-sim
+  profiles:
+    active: dev
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+
+sim:
+  markets: 5
+  assets: [A, B, C]
+  initialPrice:
+    A: 1000
+    B: 800
+    C: 600
+  epsilon: 0.0001
+  threshold: 0.05
+  resetIntervalSec: 60
+  tradeQty: 1

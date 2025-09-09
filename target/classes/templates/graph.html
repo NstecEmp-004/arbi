@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>今日の株価グラフ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family:system-ui, sans-serif; max-width: 940px; margin: 24px auto; }
+    h1 { margin: 0 0 12px; }
+    .muted { color:#666; margin-bottom: 8px; }
+    canvas { width: 100%; height: 320px; border:1px solid #ddd; border-radius:8px; }
+    a.button { display:inline-block; padding:8px 12px; border:1px solid #333; border-radius:8px; text-decoration:none; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <h1>今日の株価（グラフ）</h1>
+  <div class="muted" id="subtitle">対象: 全銘柄×全市場の平均価格</div>
+  <canvas id="chart" width="900" height="320"></canvas>
+  <a class="button" id="back" href="/ui/main">← 戻る</a>
+
+  <script>
+    
+async function stateJson() {
+  const r = await fetch('/api/state'); 
+  if (!r.ok) throw new Error(await r.text()); 
+  return r.json();
+}
+function tableAssets(table) {
+  if (!Array.isArray(table) || table.length === 0) return [];
+  return Object.keys(table[0]).filter(k => k !== 'market');
+}
+function tableMarkets(table) {
+  return (table || []).map(row => row.market);
+}
+function findPrice(table, assetSymbol, marketName) {
+  const row = (table || []).find(r => r.market === marketName);
+  if (!row) return null;
+  return row[assetSymbol] ?? null;
+}
+function avgAll(table) {
+  let sum=0, cnt=0;
+  (table||[]).forEach(row => {
+    Object.entries(row).forEach(([k,v])=>{
+      if (k==='market') return;
+      if (typeof v === 'number') { sum += v; cnt++; }
+    });
+  });
+  return cnt ? (sum/cnt) : NaN;
+}
+
+    const params = new URLSearchParams(location.search);
+    const asset = params.get('asset');
+    const market = params.get('market');
+    if (asset && market) {
+      document.getElementById('subtitle').textContent = '対象: ' + asset + ' × ' + market;
+    }
+
+    const data = []; // {t: Date, v: number}
+    const maxPoints = 600; // ~20分(2s間隔)
+
+    function draw() {
+      const c = document.getElementById('chart');
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0,0,c.width,c.height);
+      // Axes
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(50, 10);
+      ctx.lineTo(50, 300);
+      ctx.lineTo(880, 300);
+      ctx.stroke();
+
+      if (data.length < 2) return;
+
+      const minV = Math.min(...data.map(p=>p.v));
+      const maxV = Math.max(...data.map(p=>p.v));
+      const pad = (maxV - minV) * 0.1 || 1;
+      const lo = minV - pad, hi = maxV + pad;
+      const N = data.length;
+      const x0 = 60, x1 = 880, y0 = 290, y1 = 20;
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#0b57d0';
+      data.forEach((p, i)=>{
+        const x = x0 + (x1 - x0) * (i/(N-1));
+        const y = y0 - (y0 - y1) * ((p.v - lo) / (hi - lo));
+        if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+
+      // Y labels (min/mid/max)
+      ctx.fillStyle = '#333';
+      ctx.font = '12px system-ui';
+      ctx.fillText(hi.toFixed(2), 5, y1+4);
+      ctx.fillText(((hi+lo)/2).toFixed(2), 5, (y0+y1)/2);
+      ctx.fillText(lo.toFixed(2), 5, y0);
+
+      // X labels (first/last time)
+      const fmt = (d)=> d.toTimeString().slice(0,8);
+      ctx.fillText(fmt(data[0].t), x0, 315);
+      ctx.fillText(fmt(data[N-1].t), x1-60, 315);
+    }
+
+    async function sample(){
+      try {
+        const s = await stateJson();
+        const table = s.table || [];
+        let v = NaN;
+        if (asset && market) {
+          const vv = findPrice(table, asset, market);
+          if (typeof vv === 'number') v = vv;
+        } else {
+          v = avgAll(table);
+        }
+        if (!isNaN(v)) {
+          data.push({ t: new Date(), v });
+          if (data.length > maxPoints) data.shift();
+          draw();
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    setInterval(sample, 2000);
+    sample();
+  </script>
+</body>
+</html>

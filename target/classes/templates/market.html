@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title th:text="${market.name} + ' 詳細'">市場詳細</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; margin: 24px; }
+    a { color: #2563eb; text-decoration: none; }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <p><a href="javascript:history.back()">← 戻る</a> / <a href="/markets">市場一覧</a> / <a href="/">ホームへ</a></p>
+  <h1 th:text="${market.name}"></h1>
+
+  <div class="muted">各銘柄の最新価格</div>
+  <table>
+    <thead><tr><th>Asset</th><th>Price</th></tr></thead>
+    <tbody>
+      <tr th:each="a : ${assets}">
+        <td th:text="${a.symbol}"></td>
+        <td th:text="${snap.get(market.id)?.get(a.id)?.price()} ?: '-'"></td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>

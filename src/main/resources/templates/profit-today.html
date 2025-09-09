@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>今日の利益グラフ</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; margin: 24px; }
+    a { color:#2563eb; text-decoration:none; }
+    .card { border:1px solid #eee; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.04); margin-bottom:20px;}
+    canvas { width:100%; height: 400px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <p><a href="javascript:history.back()">← 戻る</a></p>
+  <h1>今日の利益グラフ</h1>
+  <div class="card"><canvas id="cum"></canvas></div>
+  <div class="card"><canvas id="perAsset"></canvas></div>
+  <script src="/js/analytics.js"></script>
+  <script>
+    (function() {
+      // このページでは period=today 固定
+      const u = new URL(location.origin + '/api/metrics'); u.searchParams.set('period','today');
+      window.fetchApi = () => fetch(u.toString()).then(r=>r.json());
+    })();
+  </script>
+</body>
+</html>
