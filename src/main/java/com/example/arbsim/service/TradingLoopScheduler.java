@@ -1,6 +1,6 @@
 package com.example.arbsim.service;
 
-import com.example.arbsim.controller.TradeControlController;
+import com.example.arbsim.controller.api.TradeControlController;
 import com.example.arbsim.entity.Trade;
 import com.example.arbsim.repo.TradeRepository;
 import com.fasterxml.jackson.databind.*;
