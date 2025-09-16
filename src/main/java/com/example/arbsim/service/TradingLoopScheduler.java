@@ -1,6 +1,6 @@
 package com.example.arbsim.service;
 
-import com.example.arbsim.controller.api.TradeControlController;
+import com.example.arbsim.controller.api.TradingSettingsApiController;
 import com.example.arbsim.entity.Trade;
 import com.example.arbsim.repo.TradeRepository;
 import com.fasterxml.jackson.databind.*;
@@ -22,12 +22,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TradingLoopScheduler {
 
     private final TradeRepository tradeRepo;
-    private final TradeControlController ctrl; // 設定値を参照
+    private final TradingSettingsApiController ctrl; // 設定値を参照
     private final RestTemplate rt = new RestTemplate();
     private final ObjectMapper om = new ObjectMapper();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public TradingLoopScheduler(TradeRepository tradeRepo, TradeControlController ctrl) {
+    public TradingLoopScheduler(TradeRepository tradeRepo, TradingSettingsApiController ctrl) {
         this.tradeRepo = tradeRepo;
         this.ctrl = ctrl;
     }
