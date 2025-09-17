@@ -1,105 +1,85 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <title>取引中</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" th:href="@{/css/simple.css}" href="/css/simple.css"/>
   <style>
-    body { margin:0; font-family:system-ui, sans-serif; height:100dvh; display:grid; place-items:center; }
-    .panel { width:min(980px, 94vw); height:min(620px, 88vh); background:#fff; border:3px solid #0a2a38; border-radius:6px; padding:24px; box-sizing:border-box; }
-    .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:18px; }
-    .tile, .end, .linktile { border:3px solid #000; border-radius:10px; padding:18px; min-height:90px; }
-    .tile h3, .linktile h3 { margin:0 0 8px; font-size:18px; }
-    .end { text-align:center; cursor:pointer; }
-    .linktile { text-decoration:none; color:inherit; display:block; }
-    .linktile:focus, .linktile:hover { outline:3px solid #4caf50; }
-    #prices { white-space: pre-wrap; max-height: 180px; overflow:auto; }
+    .shell{ width:min(1024px,96vw); margin:24px auto }
+    .grid4{ display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:14px }
+    .tile{
+      display:block; background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      box-shadow: 0 6px 16px rgba(2,6,23,.08); text-decoration:none; color:inherit;
+      padding:18px; min-height:120px; transition: transform .04s ease, box-shadow .15s ease, border-color .15s ease;
+      font-family: inherit;
+    }
+    .tile:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(2,6,23,.10); border-color:#d9dde6 }
+    .tile h3{ margin:0 0 8px; font-size:16px; color:#334155 }
+    .tile .sub{ font-size:12px; color:#64748b }
+    .value{ font-size:26px; font-weight:800; line-height:1.2; margin-top:6px }
+    /* ハイフンは出さない（空の時は空表示） */
+    #profit:empty::before, #prices:empty::before { content: ""; }
+    /* 終了ボタンカード */
+    .end-wrap{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow: 0 6px 16px rgba(2,6,23,.08); padding:18px; }
+    .btn-end{
+      display:flex; align-items:center; justify-content:center; width:100%; min-height:84px;
+      border-radius:12px; border:1px solid #ef4444; background:#ef4444; color:#fff;
+      font-weight:800; font-family: inherit; cursor:pointer; transition: transform .04s ease, filter .15s ease;
+    }
+    .btn-end:hover{ filter:brightness(1.04); transform: translateY(-1px) }
+    @media (max-width:720px){ .grid4{ grid-template-columns:1fr } }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="grid">
-      <a class="linktile" href="/ui/profit-graph"><h3>今日の利益</h3><div id="profit">-</div></a>
-      <a class="linktile" href="/ui/select-asset"><h3>銘柄数</h3><div id="assetCount">3</div></a>
-    
-      <a class="linktile" href="/ui/matrix"><h3>現在の株価</h3><div id="prices">-</div></a>
-      <div class="end" onclick="endTrading()">取引終了</div>
-    </div>
-  </div>
-  <script>
-    
-async function fetchJson(u){ const r=await fetch(u); if(!r.ok) throw new Error(await r.text()); return r.json(); }
-function getAssetSymbols(s){
-  const table = s?.table || [];
-  if (Array.isArray(table) && table.length){
-    const cols = Object.keys(table[0]).filter(k=>k!=='market');
-    if (cols.length) return cols;
-  }
-  if (Array.isArray(s?.assets) && s.assets.length){
-    const syms = s.assets.map(a=>a.symbol || a.name || a.id).filter(Boolean);
-    if (syms.length) return syms;
-  }
-  return ['A','B','C'];
-}
-function getMarketNames(s){
-  const table = s?.table || [];
-  if (Array.isArray(table) && table.length){
-    const names = table.map(r=>r.market).filter(Boolean);
-    if (names.length) return names;
-  }
-  if (Array.isArray(s?.markets) && s.markets.length){
-    const names = s.markets.map(m=>m.name || m.id).filter(Boolean);
-    if (names.length) return names;
-  }
-  return ['Market1','Market2','Market3','Market4','Market5'];
-}
-function columnKeyCaseInsensitive(row, key){
-  if (!row) return null;
-  if (key in row) return key;
-  const lower = key.toLowerCase();
-  for (const k of Object.keys(row)){
-    if (k.toLowerCase() === lower) return k;
-  }
-  return null;
-}
-function findPriceUniversal(s, assetSymbol, marketName){
-  const table = s?.table || [];
-  if (Array.isArray(table) && table.length){
-    const row = table.find(r => (r.market === marketName));
-    if (row){
-      const colKey = columnKeyCaseInsensitive(row, assetSymbol);
-      if (colKey) return row[colKey] ?? null;
-    }
-  }
-  const assets = s?.assets || [];
-  const markets = s?.markets || [];
-  const a = assets.find(x => (x.symbol===assetSymbol) || (x.name===assetSymbol) || (x.id===assetSymbol));
-  const m = markets.find(x => (x.name===marketName) || (x.id===marketName));
-  const aId = a?.id, mId = m?.id;
-  const pObj = (s?.snap?.[mId]?.[aId]);
-  if (pObj && typeof pObj.price !== 'undefined') return pObj.price;
-  return null;
-}
+  <main class="shell">
+    <h1 class="m-0">取引中</h1>
 
-    async function refresh(){
-      const s = await fetchJson('/api/state');
-      const assets = getAssetSymbols(s).slice(0,3);
-      const markets = getMarketNames(s).slice(0,5);
-      const lines = [];
-      for (const m of markets){
-        for (const a of assets){
-          const v = findPriceUniversal(s, a, m);
-          lines.push(`${a}@${m}: ${(v ?? '-')}`);
-          if (lines.length >= 8) break;
-        }
-        if (lines.length >= 8) break;
-      }
-      document.getElementById('prices').textContent = lines.join('\n') || '-';
-      try{ const m = await fetchJson('/api/metrics'); document.getElementById('profit').textContent = (typeof m.todayProfit==='number')? m.todayProfit : '-'; }catch(e){};
-    }
-    async function endTrading(){ try{ await fetch('/api/control/trading?enabled=false',{method:'POST'}); }catch(e){} location.href='/ui'; }
-    refresh(); setInterval(refresh, 2000);
+    <div class="grid4" style="margin-top:16px">
+      <!-- 1) 銘柄を選ぶ -->
+      <a class="tile" href="/ui/select-asset">
+        <h3>銘柄を選ぶ</h3>
+        <div class="sub">保有や観察したい銘柄を選択</div>
+      </a>
+
+      <!-- 2) 今日の利益（ハイフン無し） -->
+      <a class="tile" href="/ui/profit-graph">
+        <h3>今日の利益</h3>
+        <div id="profit" class="value"></div>
+      </a>
+
+      <!-- 3) 現在の株価（ハイフン無し） -->
+      <a class="tile" href="/ui/matrix">
+        <h3>現在の株価</h3>
+        <div id="prices" class="value"></div>
+      </a>
+
+      <!-- 4) 取引終了（JSでAPIにPOST→必ず /ui に戻す） -->
+      <div class="end-wrap">
+        <form id="endForm" action="/api/control/trading" method="post" style="margin:0">
+          <input type="hidden" name="enabled" value="false"/>
+          <button type="submit" class="btn-end">取引終了</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- 最小パッチ：送信をフックしてAPIにPOST→成功/失敗に関わらず /ui に戻す -->
+  <script>
+  (function(){
+    var f = document.getElementById('endForm');
+    if(!f) return;
+
+    f.addEventListener('submit', function(e){
+      e.preventDefault();
+      var url = f.action + (f.action.indexOf('?') >= 0 ? '&' : '?') + 'enabled=false';
+
+      // /api を試し、ダメなら /control にフォールバック。いずれにせよ最後は /ui へ戻す
+      fetch(url, { method: 'POST', credentials: 'same-origin' })
+        .catch(function(){ return fetch('/control/trading?enabled=false', { method: 'POST', credentials: 'same-origin' }); })
+        .finally(function(){ window.location.href = '/ui'; });
+    });
+  })();
   </script>
 </body>
 </html>

@@ -1,0 +1,4 @@
+div,section,article,aside,header,footer,main,nav,.card,.panel,.box,.container,.wrapper{border:none!important;box-shadow:none!important;background:transparent!important}
+input,select,textarea{border:1px solid #ccc;border-radius:6px;padding:6px 10px;outline:none}
+table{border-collapse:collapse}table,th,td{border:none!important}th,td{padding:6px 8px}
+a{text-decoration:none}a:hover{text-decoration:underline}

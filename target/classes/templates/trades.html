@@ -30,6 +30,7 @@
     .nowrap { white-space:nowrap; }
     .pagination { display:flex; gap:8px; margin-top:10px; align-items:center; }
   </style>
+  <link rel="stylesheet" href="/css/simple.css"/>
 </head>
 <body>
 <header>
@@ -51,7 +52,7 @@
     <div class="muted" id="updatedAt">更新: -</div>
   </div>
 
-  <div style="overflow:auto; max-height:65vh; margin-top:10px;">
+  <div  style="overflow:auto; max-height:65vh; margin-top:10px">
     <table aria-label="取引履歴">
       <thead>
       <tr>
@@ -135,10 +136,10 @@
           <td>${t.asset ?? '-'}</td>
           <td>${t.buyMarket ?? '-'}</td>
           <td>${t.sellMarket ?? '-'}</td>
-          <td style="text-align:right">${INT.format(Number(t.qty ?? 0))}</td>
-          <td style="text-align:right">${t.buyPrice!=null ? JPY.format(Number(t.buyPrice)) : '-'}</td>
-          <td style="text-align:right">${t.sellPrice!=null ? JPY.format(Number(t.sellPrice)) : '-'}</td>
-          <td style="text-align:right" class="${net>=0 ? 'pos':'neg'}">${JPY.format(net)}</td>
+          <td  style="text-align:right">${INT.format(Number(t.qty ?? 0))}</td>
+          <td  style="text-align:right">${t.buyPrice!=null ? JPY.format(Number(t.buyPrice)) : '-'}</td>
+          <td  style="text-align:right">${t.sellPrice!=null ? JPY.format(Number(t.sellPrice)) : '-'}</td>
+          <td  style="text-align:right" class="${net>=0 ? 'pos':'neg'}">${JPY.format(net)}</td>
         `;
         tbody.appendChild(tr);
       }

@@ -12,14 +12,15 @@
     a.button { display:inline-block; padding:10px 14px; border-radius:10px; border:1px solid #333; text-decoration:none; }
     .row { display:flex; gap:12px; flex-wrap:wrap; margin-top: 12px; }
   </style>
+  <link rel="stylesheet" href="/css/simple.css"/>
 </head>
 <body>
   <a class="button" href="/ui/select-market" onclick="history.back(); return false;">← 戻る</a>
   <h1>現在の株価</h1>
   <div class="info"><strong>銘柄:</strong> <span id="asset"></span> / <strong>市場:</strong> <span id="market"></span></div>
   <div class="card">
-    <div style="font-size:32px; font-weight:700" id="price">-</div>
-    <div id="ts" style="color:#666; margin-top:6px;"></div>
+    <div  style="font-size:32px; font-weight:700" id="price">-</div>
+    <div id="ts" style="color:#666; margin-top:6px"></div>
   </div>
   <div class="row">
     <a class="button" id="assetInfo" href="#">A株情報</a>
